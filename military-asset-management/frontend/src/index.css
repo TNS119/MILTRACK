@@ -1,0 +1,82 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #0a0e1a;
+  --bg-secondary: #111827;
+  --bg-card: #1a2236;
+  --bg-card-hover: #1e2a42;
+  --border: #2d3748;
+  --accent-green: #10b981;
+  --accent-blue: #3b82f6;
+  --accent-amber: #f59e0b;
+  --accent-red: #ef4444;
+  --accent-purple: #8b5cf6;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-[var(--bg-card)] border border-[var(--border)] shadow-lg rounded-lg;
+    backdrop-filter: blur(8px);
+    transition: all 0.3s ease;
+  }
+  
+  .glass-card:hover {
+    @apply shadow-xl;
+  }
+
+  .stat-card {
+    @apply glass-card p-6 flex flex-col justify-between;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .stat-card:hover {
+    transform: translateY(-4px);
+    @apply shadow-[0_10px_25px_-5px_rgba(0,0,0,0.5)];
+  }
+
+  .btn-primary {
+    @apply px-4 py-2 bg-[var(--accent-blue)] text-white rounded font-medium hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-[var(--bg-primary)] transition-colors;
+  }
+
+  .btn-secondary {
+    @apply px-4 py-2 bg-[var(--bg-secondary)] text-[var(--text-primary)] border border-[var(--border)] rounded font-medium hover:bg-[var(--bg-card-hover)] focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 focus:ring-offset-[var(--bg-primary)] transition-colors;
+  }
+
+  .btn-danger {
+    @apply px-4 py-2 bg-[var(--accent-red)] text-white rounded font-medium hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-[var(--bg-primary)] transition-colors;
+  }
+
+  .input-field {
+    @apply w-full bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text-primary)] px-4 py-2 rounded focus:outline-none focus:border-[var(--accent-blue)] transition-colors placeholder:text-[var(--text-secondary)];
+  }
+}
