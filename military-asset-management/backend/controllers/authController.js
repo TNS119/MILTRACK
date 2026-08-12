@@ -34,11 +34,11 @@ export const login = async (req, res) => {
     });
 
     // Set JWT token in an httpOnly secure cookie
-    const isProd = process.env.NODE_ENV === 'production';
+    const isSecure = req.secure || req.headers['x-forwarded-proto'] === 'https';
     res.cookie('token', token, {
       httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? 'none' : 'lax', // 'none' is required for cross-site cookie sharing (Vercel -> Render)
+      secure: isSecure,
+      sameSite: isSecure ? 'none' : 'lax', // 'none' is required for cross-site cookie sharing (Vercel -> Render)
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days matching JWT expiration
     });
 
@@ -50,11 +50,11 @@ export const login = async (req, res) => {
 };
 
 export const logout = async (req, res) => {
-  const isProd = process.env.NODE_ENV === 'production';
+  const isSecure = req.secure || req.headers['x-forwarded-proto'] === 'https';
   res.clearCookie('token', {
     httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? 'none' : 'lax'
+    secure: isSecure,
+    sameSite: isSecure ? 'none' : 'lax'
   });
   res.json({ message: 'Logged out successfully' });
 };

@@ -84,8 +84,8 @@ military-asset-management/
 ├── backend/
 │   ├── config/db.js              # PostgreSQL pool (pg)
 │   ├── controllers/              # Business logic
-│   │   ├── authController.js
-│   │   ├── assetController.js    # Dashboard aggregation (CTEs)
+│   │   ├── authController.js     # HTTP-only dynamic cookies
+│   │   ├── assetController.js    # Dashboard aggregation (CTEs) & Inventory
 │   │   ├── purchaseController.js
 │   │   ├── transferController.js # Atomic BEGIN/COMMIT transactions
 │   │   ├── assignmentController.js
@@ -94,28 +94,32 @@ military-asset-management/
 │   │   ├── authMiddleware.js     # JWT verification
 │   │   ├── rbacMiddleware.js     # Role + base-scope enforcement
 │   │   └── loggerMiddleware.js   # Morgan request logger
-│   ├── routes/                   # Express routers (7 files)
-│   ├── services/auditService.js  # Shared audit log writer
+│   ├── routes/                   # Express routers (8 files)
+│   ├── services/
+│   │   ├── auditService.js       # Shared audit log writer
+│   │   └── stockService.js       # Live transactional stock calculator
 │   ├── sql/schema.sql            # Full DDL (8 tables + 10 indexes)
-│   ├── seed.js                   # Idempotent demo-data seeder
-│   └── server.js                 # Express app entry point
+│   ├── seed.js                   # Relative dynamic Indian military seeder
+│   └── server.js                 # Express app entry point (trust proxy, CORS)
 │
 └── frontend/
     ├── src/
-    │   ├── components/
-    │   │   ├── Navbar.jsx
-    │   │   ├── Sidebar.jsx       # RBAC-driven navigation
-    │   │   ├── StatCard.jsx
-    │   │   ├── NetMoveModal.jsx  # Recharts breakdown modal
-    │   │   └── ProtectedRoute.jsx
-    │   ├── pages/
-    │   │   ├── Login.jsx         # Military-themed auth page
-    │   │   ├── Dashboard.jsx     # 5 stat cards + bar chart + filters
-    │   │   ├── Purchases.jsx     # Log & view purchases
-    │   │   ├── Transfers.jsx     # Inter-base transfers
-    │   │   └── Assignments.jsx   # Assignments + Expenditures tabs
-    │   ├── context/AuthContext.jsx
-    │   └── services/api.js       # Axios + JWT interceptors
+        ├── components/
+        │   ├── Navbar.jsx        # Command badge bar
+        │   ├── Sidebar.jsx       # RBAC-driven navigation links
+        │   ├── StatCard.jsx
+        │   ├── NetMoveModal.jsx  # Recharts breakdown modal
+        │   └── ProtectedRoute.jsx
+        ├── pages/
+        │   ├── Login.jsx         # Military-themed auth page
+        │   ├── Dashboard.jsx     # 5 stat cards + bar chart + filters
+        │   ├── Purchases.jsx     # Log & view purchases
+        │   ├── Transfers.jsx     # Stock-capped inter-base transfers
+        │   ├── Assignments.jsx   # Stock-capped Assignments + Expenditures
+        │   ├── AuditLogs.jsx     # Admin-only audit logs inspector
+        │   └── Inventory.jsx     # Global/Base inventory details page
+        ├── context/AuthContext.jsx
+        └── services/api.js       # Axios + Cookies interceptors
     └── tailwind.config.js
 ```
 
@@ -133,6 +137,7 @@ military-asset-management/
 | Assignments — CRUD | ✅ | ✅ (own base) | ❌ |
 | Expenditures — CRUD | ✅ | ✅ (own base) | ❌ |
 | Audit Logs | ✅ | ❌ | ❌ |
+| Base Inventory | ✅ | ✅ (own base) | ❌ |
 
 ---
 
@@ -140,9 +145,12 @@ military-asset-management/
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| POST | `/api/auth/login` | Public | Login → JWT |
+| POST | `/api/auth/login` | Public | Login → JWT Cookie |
+| POST | `/api/auth/logout` | 🔒 | Clear session |
 | GET | `/api/auth/me` | 🔒 | Current user profile |
 | GET | `/api/assets/dashboard` | 🔒 | Inventory metrics (filterable) |
+| GET | `/api/assets/stock` | 🔒 | Available stock level check |
+| GET | `/api/assets/inventory` | Admin, Commander | Detailed base equipment inventory |
 | GET | `/api/bases` | 🔒 | All bases (for dropdowns) |
 | GET | `/api/equipment-types` | 🔒 | All equipment types |
 | POST | `/api/purchases` | Admin, Logistics | Log new stock |
@@ -153,15 +161,36 @@ military-asset-management/
 | GET | `/api/assignments` | 🔒 | Assignment history |
 | POST | `/api/expenditures` | Admin, Commander | Record expenditure |
 | GET | `/api/expenditures` | 🔒 | Expenditure history |
+| GET | `/api/audit-logs` | Admin | System audit logs list |
 | GET | `/health` | Public | Health check |
 
 ---
 
-## 🗄️ Database Schema
+## 🛑 Negative Stock Prevention & Visual Checks
 
-8 tables: `bases`, `users`, `equipment_types`, `purchases`, `transfers`, `assignments`, `expenditures`, `audit_logs`
+The application strictly guards against negative inventory levels:
+1. **Dropdown Disabling**: In the Transfer and Field Operations forms, selecting a base updates the equipment options to display available quantities (e.g. `INSAS Rifle (Available: 80)`). Items with `0` stock display `(Out of Stock)` and are disabled from selection.
+2. **Quantity Capping**: The input field for Quantity sets a `max` bound matching the selected item's stock and clamps user-entered numbers instantly.
+3. **Double Backend Guard**: If a request bypasses the client-side UI, the controllers re-verify stock levels within the database connection client before final execution, rolling back transfers on failure.
 
-Full DDL: [`backend/sql/schema.sql`](./backend/sql/schema.sql)
+---
+
+## 🌐 Production Deployment Considerations
+
+### Secure Cross-Site Cookies
+To support authentication when the React app (e.g. Vercel) and the Express API (e.g. Render) are deployed on different domains, the system implements a self-healing cookie configuration:
+- In production (detected dynamically via `req.secure` and proxy protocol checks), the login cookie is issued with `Secure: true` and `SameSite: None`.
+- Locally, the cookie automatically falls back to HTTP compatible `Secure: false` and `SameSite: Lax`.
+- **Express Proxy Trust**: The backend enables `app.set('trust proxy', 1)` to accurately detect secure requests behind HTTPS reverse proxies.
+
+### Environment Variable Setup
+Ensure the following variables are configured in production:
+* **Backend (Render)**:
+  - `DATABASE_URL`: Connection string.
+  - `CLIENT_URL`: URL of the deployed frontend (e.g., `https://miltrack.vercel.app` - no trailing slash).
+  - `JWT_SECRET`: Safe cryptographic string.
+* **Frontend (Vercel)**:
+  - `VITE_API_BASE_URL`: URL of the deployed API (e.g., `https://miltrack-api.onrender.com/api`).
 
 ---
 
@@ -169,8 +198,8 @@ Full DDL: [`backend/sql/schema.sql`](./backend/sql/schema.sql)
 
 | Layer | Technology |
 |---|---|
-| Frontend | React 18, Vite, Tailwind CSS, Recharts, Lucide React, Axios |
+| Frontend | React 18, Vite, Vanilla CSS, Recharts, Lucide React, Axios |
 | Backend | Node.js, Express.js (ES Modules) |
 | Database | PostgreSQL (raw SQL via `pg` — no ORM) |
-| Auth | JWT (jsonwebtoken) + bcryptjs |
-| Security | Helmet, CORS with origin allowlist, RBAC middleware |
+| Auth | JWT (jsonwebtoken) + cookieParser |
+| Security | Helmet, CORS (credentials allowlist), Express trust proxy, RBAC middleware |

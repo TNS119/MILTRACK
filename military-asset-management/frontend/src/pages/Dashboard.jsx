@@ -4,7 +4,7 @@ import { assetsAPI, lookupsAPI } from '../services/api';
 import StatCard from '../components/StatCard';
 import NetMoveModal from '../components/NetMoveModal';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { BarChart2, TrendingUp, Users, Shield, Zap } from 'lucide-react';
+import { BarChart2, TrendingUp, TrendingDown, Users, Shield, Zap } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const Dashboard = () => {
@@ -12,8 +12,7 @@ const Dashboard = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
-  // Filters
+
   const [bases, setBases] = useState([]);
   const [equipmentTypes, setEquipmentTypes] = useState([]);
   const [filters, setFilters] = useState({
@@ -22,7 +21,7 @@ const Dashboard = () => {
     baseId: user?.role === 'BASE_COMMANDER' ? user.baseId : '',
     equipmentTypeId: ''
   });
-  
+
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
@@ -57,8 +56,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchDashboardData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run on mount
+  }, []);
 
   const handleApplyFilters = () => {
     fetchDashboardData();
@@ -71,7 +69,6 @@ const Dashboard = () => {
       baseId: user?.role === 'BASE_COMMANDER' ? user.baseId : '',
       equipmentTypeId: ''
     });
-    // fetch is called in next render or handled via explicit call if preferred, we'll just call fetchDashboardData manually here after updating state
     setTimeout(fetchDashboardData, 0);
   };
 
@@ -91,33 +88,33 @@ const Dashboard = () => {
         <h1 className="text-2xl font-bold">Command Overview</h1>
       </div>
 
-      {/* Filter Bar */}
+
       <div className="glass-card p-4 flex flex-col md:flex-row gap-4 items-end">
         <div className="flex-1 w-full">
           <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Start Date</label>
-          <input 
-            type="date" 
-            className="input-field" 
+          <input
+            type="date"
+            className="input-field"
             value={filters.startDate}
-            onChange={e => setFilters({...filters, startDate: e.target.value})}
+            onChange={e => setFilters({ ...filters, startDate: e.target.value })}
           />
         </div>
         <div className="flex-1 w-full">
           <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">End Date</label>
-          <input 
-            type="date" 
-            className="input-field" 
+          <input
+            type="date"
+            className="input-field"
             value={filters.endDate}
-            onChange={e => setFilters({...filters, endDate: e.target.value})}
+            onChange={e => setFilters({ ...filters, endDate: e.target.value })}
           />
         </div>
         {user?.role !== 'BASE_COMMANDER' && (
           <div className="flex-1 w-full">
             <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Base</label>
-            <select 
+            <select
               className="input-field"
               value={filters.baseId}
-              onChange={e => setFilters({...filters, baseId: e.target.value})}
+              onChange={e => setFilters({ ...filters, baseId: e.target.value })}
             >
               <option value="">All Bases</option>
               {bases.map(b => (
@@ -128,10 +125,10 @@ const Dashboard = () => {
         )}
         <div className="flex-1 w-full">
           <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Equipment Type</label>
-          <select 
+          <select
             className="input-field"
             value={filters.equipmentTypeId}
-            onChange={e => setFilters({...filters, equipmentTypeId: e.target.value})}
+            onChange={e => setFilters({ ...filters, equipmentTypeId: e.target.value })}
           >
             <option value="">All Types</option>
             {equipmentTypes.map(eq => (
@@ -157,43 +154,46 @@ const Dashboard = () => {
         </div>
       ) : (
         <>
-          {/* Stat Cards */}
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            <StatCard 
-              title="Opening Balance" 
-              value={data?.openingBalance ?? 0} 
-              icon={BarChart2} 
-              color="blue" 
+            <StatCard
+              title="Opening Balance"
+              value={data?.openingBalance ?? 0}
+              icon={BarChart2}
+              color="blue"
+              subtitle="Stock at start of period"
             />
-            <StatCard 
-              title="Net Movement" 
-              value={data?.netMovement ?? 0} 
-              icon={TrendingUp} 
-              color="green" 
+            <StatCard
+              title="Net Movement"
+              value={data?.netMovement ?? 0}
+              icon={(data?.netMovement ?? 0) >= 0 ? TrendingUp : TrendingDown}
+              color={(data?.netMovement ?? 0) >= 0 ? 'green' : 'red'}
               onClick={() => setIsModalOpen(true)}
               subtitle="Click for breakdown"
             />
-            <StatCard 
-              title="Assigned" 
-              value={data?.assigned ?? 0} 
-              icon={Users} 
-              color="amber" 
+            <StatCard
+              title="Assigned"
+              value={data?.assigned ?? 0}
+              icon={Users}
+              color="amber"
+              subtitle="Allocated to active units"
             />
-            <StatCard 
-              title="Closing Balance" 
-              value={data?.closingBalance ?? 0} 
-              icon={Shield} 
-              color="purple" 
+            <StatCard
+              title="Closing Balance"
+              value={data?.closingBalance ?? 0}
+              icon={Shield}
+              color="purple"
+              subtitle="Available inventory stock"
             />
-            <StatCard 
-              title="Expended" 
-              value={data?.expended ?? 0} 
-              icon={Zap} 
-              color="red" 
+            <StatCard
+              title="Expended"
+              value={data?.expended ?? 0}
+              icon={Zap}
+              color="red"
+              subtitle="Consumed or written off"
             />
           </div>
 
-          {/* Charts Section */}
           <div className="glass-card p-6 mt-6">
             <h3 className="text-lg font-bold mb-6">Movement Overview</h3>
             <div className="h-80 w-full">
@@ -202,7 +202,7 @@ const Dashboard = () => {
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                   <XAxis dataKey="name" stroke="var(--text-secondary)" />
                   <YAxis stroke="var(--text-secondary)" />
-                  <Tooltip 
+                  <Tooltip
                     contentStyle={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)', borderRadius: '8px' }}
                     itemStyle={{ color: 'var(--text-primary)' }}
                   />
@@ -219,10 +219,10 @@ const Dashboard = () => {
       )}
 
       {data && (
-        <NetMoveModal 
-          isOpen={isModalOpen} 
-          onClose={() => setIsModalOpen(false)} 
-          metrics={data} 
+        <NetMoveModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          metrics={data}
         />
       )}
     </div>

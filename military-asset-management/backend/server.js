@@ -16,6 +16,9 @@ import auditRoutes from './routes/auditRoutes.js';
 
 const app = express();
 
+// Trust proxy for secure HTTPS cookies behind reverse proxies (Render, Heroku)
+app.set('trust proxy', 1);
+
 // --- CORS must come BEFORE helmet so preflight OPTIONS get correct headers ---
 const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173')
   .split(',')

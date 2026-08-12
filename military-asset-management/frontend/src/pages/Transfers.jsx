@@ -127,7 +127,14 @@ const Transfers = () => {
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
           <div>
             <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Source Base</label>
-            <select required className="input-field" value={formData.fromBaseId} onChange={e => setFormData({...formData, fromBaseId: e.target.value})}>
+            <select required className="input-field" value={formData.fromBaseId} onChange={e => {
+              const nextFromBaseId = e.target.value;
+              setFormData(prev => ({
+                ...prev,
+                fromBaseId: nextFromBaseId,
+                toBaseId: prev.toBaseId === nextFromBaseId ? '' : prev.toBaseId
+              }));
+            }}>
               <option value="">Select Origin</option>
               {bases.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
@@ -136,7 +143,11 @@ const Transfers = () => {
             <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Destination Base</label>
             <select required className="input-field" value={formData.toBaseId} onChange={e => setFormData({...formData, toBaseId: e.target.value})}>
               <option value="">Select Destination</option>
-              {bases.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              {bases.map(b => (
+                <option key={b.id} value={b.id} disabled={String(b.id) === String(formData.fromBaseId)}>
+                  {b.name}
+                </option>
+              ))}
             </select>
           </div>
           <div>
