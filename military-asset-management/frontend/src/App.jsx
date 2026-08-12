@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import Purchases from './pages/Purchases';
 import Transfers from './pages/Transfers';
 import Assignments from './pages/Assignments';
+import AuditLogs from './pages/AuditLogs';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 
@@ -40,6 +41,10 @@ export default function App() {
             
             <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'BASE_COMMANDER']} />}>
               <Route element={<AppLayout><Assignments /></AppLayout>} path="/assignments" />
+            </Route>
+
+            <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+              <Route element={<AppLayout><AuditLogs /></AppLayout>} path="/audit-logs" />
             </Route>
           </Route>
           

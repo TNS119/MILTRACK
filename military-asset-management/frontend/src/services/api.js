@@ -2,23 +2,17 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api',
-});
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
+  withCredentials: true, // Send secure cookies automatically
 });
 
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      localStorage.removeItem('token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
@@ -26,11 +20,13 @@ api.interceptors.response.use(
 
 export const authAPI = {
   login: (username, password) => api.post('/auth/login', { username, password }),
+  logout: () => api.post('/auth/logout'),
   getMe: () => api.get('/auth/me'),
 };
 
 export const assetsAPI = {
   getDashboard: (params) => api.get('/assets/dashboard', { params }),
+  checkStock: (baseId, equipmentTypeId) => api.get('/assets/stock', { params: { baseId, equipmentTypeId } }),
 };
 
 export const purchasesAPI = {
@@ -56,6 +52,10 @@ export const expendituresAPI = {
 export const lookupsAPI = {
   getBases: () => api.get('/bases'),
   getEquipmentTypes: (category) => api.get('/equipment-types', { params: { category } }),
+};
+
+export const auditAPI = {
+  getAll: (params) => api.get('/audit-logs', { params }),
 };
 
 export default api;

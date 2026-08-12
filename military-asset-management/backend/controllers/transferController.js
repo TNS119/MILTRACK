@@ -1,5 +1,6 @@
 import { query, getClient } from '../config/db.js';
 import { writeAuditLog } from '../services/auditService.js';
+import { getAvailableStock } from '../services/stockService.js';
 
 export const createTransfer = async (req, res) => {
   const { sourceBaseId, destinationBaseId, equipmentTypeId, quantity, notes } = req.body;
@@ -10,6 +11,13 @@ export const createTransfer = async (req, res) => {
   const client = await getClient();
   try {
     await client.query('BEGIN');
+
+    // Validate available stock at the source base before allowing transfer
+    const available = await getAvailableStock(sourceBaseId, equipmentTypeId, client);
+    if (available < quantity) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: `Insufficient stock at source base. Available: ${available}, Requested: ${quantity}` });
+    }
 
     const result = await client.query(`
       INSERT INTO transfers (source_base_id, destination_base_id, equipment_type_id, quantity, notes, initiated_by)

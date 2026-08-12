@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import { requestLogger } from './middlewares/loggerMiddleware.js';
 
 import authRoutes from './routes/authRoutes.js';
@@ -11,6 +12,7 @@ import transferRoutes from './routes/transferRoutes.js';
 import assignmentRoutes from './routes/assignmentRoutes.js';
 import expenditureRoutes from './routes/expenditureRoutes.js';
 import lookupRoutes from './routes/lookupRoutes.js';
+import auditRoutes from './routes/auditRoutes.js';
 
 const app = express();
 
@@ -35,6 +37,7 @@ app.use(cors({
 app.options('*', cors());
 
 app.use(helmet());
+app.use(cookieParser());
 app.use(express.json());
 app.use(requestLogger);
 
@@ -44,6 +47,7 @@ app.use('/api/purchases', purchaseRoutes);
 app.use('/api/transfers', transferRoutes);
 app.use('/api/assignments', assignmentRoutes);
 app.use('/api/expenditures', expenditureRoutes);
+app.use('/api/audit-logs', auditRoutes);
 app.use('/api', lookupRoutes);
 
 app.get('/health', (req, res) => {

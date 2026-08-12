@@ -21,8 +21,8 @@ const Login = () => {
 
     try {
       const response = await authAPI.login(username, password);
-      const { token, user } = response.data;
-      login(token, user);
+      const { user } = response.data;
+      login(user);
       navigate('/');
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed. Please check your credentials.');

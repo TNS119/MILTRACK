@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { transfersAPI, lookupsAPI } from '../services/api';
+import { transfersAPI, lookupsAPI, assetsAPI } from '../services/api';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const Transfers = () => {
@@ -19,6 +19,7 @@ const Transfers = () => {
   
   const [submitLoading, setSubmitLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [availableStock, setAvailableStock] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -41,10 +42,32 @@ const Transfers = () => {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    const fetchStock = async () => {
+      if (formData.fromBaseId && formData.equipmentTypeId) {
+        try {
+          const res = await assetsAPI.checkStock(formData.fromBaseId, formData.equipmentTypeId);
+          setAvailableStock(res.data.available);
+        } catch (err) {
+          console.error('Error checking stock:', err);
+          setAvailableStock(0);
+        }
+      } else {
+        setAvailableStock(null);
+      }
+    };
+    fetchStock();
+  }, [formData.fromBaseId, formData.equipmentTypeId]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (formData.fromBaseId === formData.toBaseId) {
       setMessage({ type: 'error', text: 'Source and Destination bases must be different.' });
+      return;
+    }
+
+    if (availableStock !== null && formData.quantity > availableStock) {
+      setMessage({ type: 'error', text: `Cannot transfer more than available stock (${availableStock}).` });
       return;
     }
     
@@ -60,6 +83,11 @@ const Transfers = () => {
       });
       setMessage({ type: 'success', text: 'Transfer initiated successfully.' });
       setFormData({ ...formData, quantity: 1, notes: '' });
+      
+      // Fetch fresh stock to update the UI Available count immediately
+      const stockRes = await assetsAPI.checkStock(formData.fromBaseId, formData.equipmentTypeId);
+      setAvailableStock(stockRes.data.available);
+
       const res = await transfersAPI.getAll();
       setTransfers(res.data.data || []);
     } catch (err) {
@@ -104,7 +132,9 @@ const Transfers = () => {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Quantity</label>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+              Quantity {availableStock !== null && `(Available: ${availableStock})`}
+            </label>
             <input type="number" min="1" required className="input-field" value={formData.quantity} onChange={e => setFormData({...formData, quantity: parseInt(e.target.value)})} />
           </div>
           <div>

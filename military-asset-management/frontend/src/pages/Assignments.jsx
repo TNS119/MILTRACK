@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { assignmentsAPI, expendituresAPI, lookupsAPI } from '../services/api';
+import { assignmentsAPI, expendituresAPI, lookupsAPI, assetsAPI } from '../services/api';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const Assignments = () => {
@@ -14,6 +14,7 @@ const Assignments = () => {
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [availableStock, setAvailableStock] = useState(null);
 
   const [formData, setFormData] = useState({
     baseId: isCommander ? user.baseId : '',
@@ -37,6 +38,23 @@ const Assignments = () => {
     };
     fetchInitial();
   }, []);
+
+  useEffect(() => {
+    const fetchStock = async () => {
+      if (formData.baseId && formData.equipmentTypeId) {
+        try {
+          const res = await assetsAPI.checkStock(formData.baseId, formData.equipmentTypeId);
+          setAvailableStock(res.data.available);
+        } catch (err) {
+          console.error('Error checking stock:', err);
+          setAvailableStock(0);
+        }
+      } else {
+        setAvailableStock(null);
+      }
+    };
+    fetchStock();
+  }, [formData.baseId, formData.equipmentTypeId, activeTab]);
 
   useEffect(() => {
     fetchList();
@@ -63,6 +81,11 @@ const Assignments = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (availableStock !== null && formData.quantity > availableStock) {
+      setMessage({ type: 'error', text: `Cannot log more than available stock (${availableStock}).` });
+      return;
+    }
+
     setSubmitLoading(true);
     setMessage('');
     
@@ -93,6 +116,11 @@ const Assignments = () => {
         reason: '',
         notes: ''
       });
+
+      // Fetch fresh stock to update the UI Available count immediately
+      const stockRes = await assetsAPI.checkStock(formData.baseId, formData.equipmentTypeId);
+      setAvailableStock(stockRes.data.available);
+
       fetchList();
     } catch (err) {
       setMessage({ type: 'error', text: err.response?.data?.message || 'Action failed.' });
@@ -149,7 +177,9 @@ const Assignments = () => {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Quantity</label>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+              Quantity {availableStock !== null && `(Available: ${availableStock})`}
+            </label>
             <input type="number" min="1" required className="input-field" value={formData.quantity} onChange={e => setFormData({...formData, quantity: parseInt(e.target.value)})} />
           </div>
           

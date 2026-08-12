@@ -1,11 +1,18 @@
 import { query } from '../config/db.js';
 import { writeAuditLog } from '../services/auditService.js';
+import { getAvailableStock } from '../services/stockService.js';
 
 export const createExpenditure = async (req, res) => {
   try {
     const { baseId, equipmentTypeId, quantity, expenditureDate, reason } = req.body;
     if (!baseId || !equipmentTypeId || !quantity || !expenditureDate) {
       return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Validate available stock at the base
+    const available = await getAvailableStock(baseId, equipmentTypeId);
+    if (available < quantity) {
+      return res.status(400).json({ error: `Insufficient stock at base. Available: ${available}, Requested: ${quantity}` });
     }
 
     const result = await query(`

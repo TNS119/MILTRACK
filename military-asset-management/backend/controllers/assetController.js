@@ -1,74 +1,96 @@
 import { query } from '../config/db.js';
+import { getAvailableStock } from '../services/stockService.js';
 
 export const getDashboardMetrics = async (req, res) => {
   try {
     const { baseId, equipmentTypeId, startDate, endDate } = req.query;
 
-    // Build params array sequentially — each filter appended once, referenced by position
+    // Build params array — each filter value pushed once, referenced by $N everywhere
     const params = [];
     let idx = 1;
 
-    // Slot assignments (null means "not filtered")
-    const baseSlot       = baseId          ? (params.push(parseInt(baseId, 10)),          idx++) : null;
-    const equipSlot      = equipmentTypeId ? (params.push(parseInt(equipmentTypeId, 10)), idx++) : null;
-    const startSlot      = startDate       ? (params.push(startDate),                     idx++) : null;
-    const endSlot        = endDate         ? (params.push(endDate),                       idx++) : null;
+    const baseSlot  = baseId          ? (params.push(parseInt(baseId, 10)),          idx++) : null;
+    const equipSlot = equipmentTypeId ? (params.push(parseInt(equipmentTypeId, 10)), idx++) : null;
+    const startSlot = startDate       ? (params.push(startDate),                     idx++) : null;
+    const endSlot   = endDate         ? (params.push(endDate),                       idx++) : null;
 
-    // Helper: returns a SQL fragment for a given column name vs a slot
-    const bf = (col)  => baseSlot  ? `AND ${col} = $${baseSlot}`  : '';
-    const ef = (col)  => equipSlot ? `AND ${col} = $${equipSlot}` : '';
-    const s0 = (col)  => startSlot ? `AND ${col} >= $${startSlot}` : 'AND 1=0'; // "before" window: no start → 0
-    const s1 = (col)  => startSlot ? `AND ${col} >= $${startSlot}` : '';
-    const e1 = (col)  => endSlot   ? `AND ${col} <= $${endSlot}`  : '';
+    // --- SQL fragment helpers ---
+    const baseFilter      = (col) => baseSlot  ? `AND ${col} = $${baseSlot}`   : '';
+    const equipFilter     = (col) => equipSlot ? `AND ${col} = $${equipSlot}`  : '';
+    const dateGte         = (col) => startSlot ? `AND ${col} >= $${startSlot}` : '';
+    const dateLte         = (col) => endSlot   ? `AND ${col} <= $${endSlot}`   : '';
+    const dateBefore      = (col) => startSlot ? `AND ${col} < $${startSlot}`  : '';
+
+    // When no startDate is provided, the opening balance should be 0.
+    // We achieve this by adding AND 1=0 to each opening CTE.
+    const hasStart = !!startSlot;
 
     const sql = `
       WITH
-        -- Current period aggregations
+        -- ===== CURRENT PERIOD (all-time if no dates provided) =====
         purchases_now AS (
           SELECT COALESCE(SUM(quantity),0) AS val FROM purchases WHERE 1=1
-          ${bf('base_id')} ${ef('equipment_type_id')} ${s1('purchase_date')} ${e1('purchase_date')}
+          ${baseFilter('base_id')} ${equipFilter('equipment_type_id')}
+          ${dateGte('purchase_date')} ${dateLte('purchase_date')}
         ),
         transfers_in_now AS (
           SELECT COALESCE(SUM(quantity),0) AS val FROM transfers WHERE status='COMPLETED'
           ${baseSlot ? `AND destination_base_id = $${baseSlot}` : ''}
-          ${ef('equipment_type_id')} ${s1('transfer_date')} ${e1('transfer_date')}
+          ${equipFilter('equipment_type_id')}
+          ${dateGte('transfer_date')} ${dateLte('transfer_date')}
         ),
         transfers_out_now AS (
           SELECT COALESCE(SUM(quantity),0) AS val FROM transfers WHERE status='COMPLETED'
           ${baseSlot ? `AND source_base_id = $${baseSlot}` : ''}
-          ${ef('equipment_type_id')} ${s1('transfer_date')} ${e1('transfer_date')}
+          ${equipFilter('equipment_type_id')}
+          ${dateGte('transfer_date')} ${dateLte('transfer_date')}
         ),
         assigned_now AS (
           SELECT COALESCE(SUM(quantity),0) AS val FROM assignments WHERE 1=1
-          ${bf('base_id')} ${ef('equipment_type_id')} ${s1('assigned_date')} ${e1('assigned_date')}
+          ${baseFilter('base_id')} ${equipFilter('equipment_type_id')}
+          ${dateGte('assigned_date')} ${dateLte('assigned_date')}
         ),
         expended_now AS (
           SELECT COALESCE(SUM(quantity),0) AS val FROM expenditures WHERE 1=1
-          ${bf('base_id')} ${ef('equipment_type_id')} ${s1('expenditure_date')} ${e1('expenditure_date')}
+          ${baseFilter('base_id')} ${equipFilter('equipment_type_id')}
+          ${dateGte('expenditure_date')} ${dateLte('expenditure_date')}
         ),
-        -- Opening balance = everything BEFORE startDate (zero when no startDate)
+
+        -- ===== OPENING BALANCE (everything before startDate) =====
+        -- When no startDate → all opening CTEs return 0 via AND 1=0
         opening_p AS (
           SELECT COALESCE(SUM(quantity),0) AS val FROM purchases WHERE 1=1
-          ${bf('base_id')} ${ef('equipment_type_id')} ${s0('purchase_date').replace('>=', '<')}
+          ${hasStart ? '' : 'AND 1=0'}
+          ${baseFilter('base_id')} ${equipFilter('equipment_type_id')}
+          ${dateBefore('purchase_date')}
         ),
         opening_ti AS (
           SELECT COALESCE(SUM(quantity),0) AS val FROM transfers WHERE status='COMPLETED'
+          ${hasStart ? '' : 'AND 1=0'}
           ${baseSlot ? `AND destination_base_id = $${baseSlot}` : ''}
-          ${ef('equipment_type_id')} ${startSlot ? `AND transfer_date < $${startSlot}` : 'AND 1=0'}
+          ${equipFilter('equipment_type_id')}
+          ${dateBefore('transfer_date')}
         ),
         opening_to AS (
           SELECT COALESCE(SUM(quantity),0) AS val FROM transfers WHERE status='COMPLETED'
+          ${hasStart ? '' : 'AND 1=0'}
           ${baseSlot ? `AND source_base_id = $${baseSlot}` : ''}
-          ${ef('equipment_type_id')} ${startSlot ? `AND transfer_date < $${startSlot}` : 'AND 1=0'}
+          ${equipFilter('equipment_type_id')}
+          ${dateBefore('transfer_date')}
         ),
         opening_a AS (
           SELECT COALESCE(SUM(quantity),0) AS val FROM assignments WHERE 1=1
-          ${bf('base_id')} ${ef('equipment_type_id')} ${startSlot ? `AND assigned_date < $${startSlot}` : 'AND 1=0'}
+          ${hasStart ? '' : 'AND 1=0'}
+          ${baseFilter('base_id')} ${equipFilter('equipment_type_id')}
+          ${dateBefore('assigned_date')}
         ),
         opening_e AS (
           SELECT COALESCE(SUM(quantity),0) AS val FROM expenditures WHERE 1=1
-          ${bf('base_id')} ${ef('equipment_type_id')} ${startSlot ? `AND expenditure_date < $${startSlot}` : 'AND 1=0'}
+          ${hasStart ? '' : 'AND 1=0'}
+          ${baseFilter('base_id')} ${equipFilter('equipment_type_id')}
+          ${dateBefore('expenditure_date')}
         )
+
       SELECT
         (SELECT val FROM purchases_now)     AS "purchases",
         (SELECT val FROM transfers_in_now)  AS "transfersIn",
@@ -87,13 +109,13 @@ export const getDashboardMetrics = async (req, res) => {
     const result = await query(sql, params);
     const row = result.rows[0];
 
-    const purchases     = parseInt(row.purchases,     10);
-    const transfersIn   = parseInt(row.transfersIn,   10);
-    const transfersOut  = parseInt(row.transfersOut,  10);
-    const assigned      = parseInt(row.assigned,      10);
-    const expended      = parseInt(row.expended,      10);
+    const purchases      = parseInt(row.purchases, 10);
+    const transfersIn    = parseInt(row.transfersIn, 10);
+    const transfersOut   = parseInt(row.transfersOut, 10);
+    const assigned       = parseInt(row.assigned, 10);
+    const expended       = parseInt(row.expended, 10);
     const openingBalance = parseInt(row.openingBalance, 10);
-    const netMovement   = purchases + transfersIn - transfersOut;
+    const netMovement    = purchases + transfersIn - transfersOut;
     const closingBalance = openingBalance + netMovement - assigned - expended;
 
     res.json({
@@ -108,6 +130,21 @@ export const getDashboardMetrics = async (req, res) => {
     });
   } catch (error) {
     console.error('getDashboardMetrics error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const checkStock = async (req, res) => {
+  try {
+    const { baseId, equipmentTypeId } = req.query;
+    if (!baseId || !equipmentTypeId) {
+      return res.status(400).json({ error: 'Missing required parameters: baseId, equipmentTypeId' });
+    }
+
+    const available = await getAvailableStock(baseId, equipmentTypeId);
+    res.json({ available });
+  } catch (error) {
+    console.error('checkStock error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

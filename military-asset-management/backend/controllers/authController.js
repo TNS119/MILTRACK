@@ -33,11 +33,30 @@ export const login = async (req, res) => {
       expiresIn: process.env.JWT_EXPIRES_IN || '7d'
     });
 
-    res.json({ token, user: payload });
+    // Set JWT token in an httpOnly secure cookie
+    const isProd = process.env.NODE_ENV === 'production';
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'lax', // 'none' is required for cross-site cookie sharing (Vercel -> Render)
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days matching JWT expiration
+    });
+
+    res.json({ user: payload });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Internal server error' });
   }
+};
+
+export const logout = async (req, res) => {
+  const isProd = process.env.NODE_ENV === 'production';
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax'
+  });
+  res.json({ message: 'Logged out successfully' });
 };
 
 export const getMe = async (req, res) => {

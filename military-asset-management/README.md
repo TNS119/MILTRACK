@@ -72,7 +72,7 @@ npm run dev
 | Role | Username | Password | Base Access |
 |---|---|---|---|
 | **Admin** | `admin_user` | `AdminPass123!` | All Bases (Global) |
-| **Base Commander** | `commander_alpha` | `CommandPass123!` | Fort Alpha (Base #1) only |
+| **Base Commander** | `commander_north` | `CommandPass123!` | Northern Command Base (Base #1) only |
 | **Logistics Officer** | `logistics_officer` | `LogisticsPass123!` | Global Ops |
 
 ---
