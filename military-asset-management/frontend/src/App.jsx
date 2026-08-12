@@ -7,6 +7,7 @@ import Purchases from './pages/Purchases';
 import Transfers from './pages/Transfers';
 import Assignments from './pages/Assignments';
 import AuditLogs from './pages/AuditLogs';
+import Inventory from './pages/Inventory';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 
@@ -41,6 +42,7 @@ export default function App() {
             
             <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'BASE_COMMANDER']} />}>
               <Route element={<AppLayout><Assignments /></AppLayout>} path="/assignments" />
+              <Route element={<AppLayout><Inventory /></AppLayout>} path="/inventory" />
             </Route>
 
             <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>

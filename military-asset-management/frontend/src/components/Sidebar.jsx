@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, ShoppingCart, ArrowLeftRight, ClipboardList, ScrollText } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, ArrowLeftRight, ClipboardList, ScrollText, Archive } from 'lucide-react';
 
 const Sidebar = () => {
   const { user } = useAuth();
@@ -23,6 +23,10 @@ const Sidebar = () => {
 
     if (role === 'ADMIN') {
       items.push({ path: '/audit-logs', label: 'Audit Logs', icon: ScrollText, roles: ['ADMIN'] });
+    }
+
+    if (['ADMIN', 'BASE_COMMANDER'].includes(role)) {
+      items.push({ path: '/inventory', label: 'Base Inventory', icon: Archive, roles: ['ADMIN', 'BASE_COMMANDER'] });
     }
 
     return items;

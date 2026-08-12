@@ -20,6 +20,7 @@ const Transfers = () => {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [availableStock, setAvailableStock] = useState(null);
+  const [baseInventory, setBaseInventory] = useState([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -43,21 +44,35 @@ const Transfers = () => {
   }, []);
 
   useEffect(() => {
-    const fetchStock = async () => {
-      if (formData.fromBaseId && formData.equipmentTypeId) {
+    const fetchBaseInventory = async () => {
+      if (formData.fromBaseId) {
         try {
-          const res = await assetsAPI.checkStock(formData.fromBaseId, formData.equipmentTypeId);
-          setAvailableStock(res.data.available);
+          const res = await assetsAPI.getInventory({ baseId: formData.fromBaseId });
+          setBaseInventory(res.data || []);
         } catch (err) {
-          console.error('Error checking stock:', err);
-          setAvailableStock(0);
+          console.error('Error fetching base inventory:', err);
+          setBaseInventory([]);
         }
       } else {
+        setBaseInventory([]);
         setAvailableStock(null);
       }
     };
-    fetchStock();
-  }, [formData.fromBaseId, formData.equipmentTypeId]);
+    fetchBaseInventory();
+  }, [formData.fromBaseId]);
+
+  useEffect(() => {
+    if (formData.equipmentTypeId && baseInventory.length > 0) {
+      const match = baseInventory.find(item => String(item.equipmentTypeId) === String(formData.equipmentTypeId));
+      const stock = match ? match.currentStock : 0;
+      setAvailableStock(stock);
+      if (formData.quantity > stock) {
+        setFormData(prev => ({ ...prev, quantity: Math.max(1, stock) }));
+      }
+    } else {
+      setAvailableStock(null);
+    }
+  }, [formData.equipmentTypeId, baseInventory]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -84,9 +99,9 @@ const Transfers = () => {
       setMessage({ type: 'success', text: 'Transfer initiated successfully.' });
       setFormData({ ...formData, quantity: 1, notes: '' });
       
-      // Fetch fresh stock to update the UI Available count immediately
-      const stockRes = await assetsAPI.checkStock(formData.fromBaseId, formData.equipmentTypeId);
-      setAvailableStock(stockRes.data.available);
+      // Fetch fresh base inventory to update all dropdown counts and stock immediately
+      const invRes = await assetsAPI.getInventory({ baseId: formData.fromBaseId });
+      setBaseInventory(invRes.data || []);
 
       const res = await transfersAPI.getAll();
       setTransfers(res.data.data || []);
@@ -128,14 +143,37 @@ const Transfers = () => {
             <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Equipment Type</label>
             <select required className="input-field" value={formData.equipmentTypeId} onChange={e => setFormData({...formData, equipmentTypeId: e.target.value})}>
               <option value="">Select Equipment</option>
-              {equipmentTypes.map(eq => <option key={eq.id} value={eq.id}>{eq.name}</option>)}
+              {equipmentTypes.map(eq => {
+                const match = baseInventory.find(item => String(item.equipmentTypeId) === String(eq.id));
+                const stock = match ? match.currentStock : 0;
+                const isOutOfStock = formData.fromBaseId && stock <= 0;
+                return (
+                  <option key={eq.id} value={eq.id} disabled={isOutOfStock}>
+                    {eq.name} {formData.fromBaseId ? (stock <= 0 ? '(Out of Stock)' : `(Available: ${stock})`) : ''}
+                  </option>
+                );
+              })}
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
               Quantity {availableStock !== null && `(Available: ${availableStock})`}
             </label>
-            <input type="number" min="1" required className="input-field" value={formData.quantity} onChange={e => setFormData({...formData, quantity: parseInt(e.target.value)})} />
+            <input 
+              type="number" 
+              min="1" 
+              max={availableStock !== null ? availableStock : undefined}
+              required 
+              className="input-field" 
+              value={formData.quantity} 
+              onChange={e => {
+                let val = parseInt(e.target.value, 10);
+                if (isNaN(val)) val = '';
+                else if (val < 1) val = 1;
+                else if (availableStock !== null && val > availableStock) val = availableStock;
+                setFormData({...formData, quantity: val});
+              }} 
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Transfer Date</label>

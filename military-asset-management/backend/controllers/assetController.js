@@ -148,3 +148,56 @@ export const checkStock = async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+export const getInventory = async (req, res) => {
+  try {
+    const { baseId, category } = req.query;
+
+    const params = [];
+    let paramIndex = 1;
+    let conditions = [];
+
+    if (baseId) {
+      conditions.push(`b.id = $${paramIndex++}`);
+      params.push(parseInt(baseId, 10));
+    }
+    if (category) {
+      conditions.push(`e.category = $${paramIndex++}`);
+      params.push(category);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const sql = `
+      SELECT 
+        b.id AS "baseId",
+        b.name AS "baseName",
+        e.id AS "equipmentTypeId",
+        e.name AS "equipmentName",
+        e.category AS "category",
+        (
+          COALESCE((SELECT SUM(quantity) FROM purchases WHERE base_id = b.id AND equipment_type_id = e.id), 0)
+          + COALESCE((SELECT SUM(quantity) FROM transfers WHERE destination_base_id = b.id AND equipment_type_id = e.id AND status = 'COMPLETED'), 0)
+          - COALESCE((SELECT SUM(quantity) FROM transfers WHERE source_base_id = b.id AND equipment_type_id = e.id AND status = 'COMPLETED'), 0)
+          - COALESCE((SELECT SUM(quantity) FROM assignments WHERE base_id = b.id AND equipment_type_id = e.id), 0)
+          - COALESCE((SELECT SUM(quantity) FROM expenditures WHERE base_id = b.id AND equipment_type_id = e.id), 0)
+        ) AS "currentStock"
+      FROM bases b
+      CROSS JOIN equipment_types e
+      ${whereClause}
+      ORDER BY b.name, e.name
+    `;
+
+    const result = await query(sql, params);
+
+    const formatted = result.rows.map(row => ({
+      ...row,
+      currentStock: parseInt(row.currentStock, 10)
+    }));
+
+    res.json(formatted);
+  } catch (error) {
+    console.error('getInventory error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};

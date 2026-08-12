@@ -27,6 +27,7 @@ export const authAPI = {
 export const assetsAPI = {
   getDashboard: (params) => api.get('/assets/dashboard', { params }),
   checkStock: (baseId, equipmentTypeId) => api.get('/assets/stock', { params: { baseId, equipmentTypeId } }),
+  getInventory: (params) => api.get('/assets/inventory', { params }),
 };
 
 export const purchasesAPI = {
